@@ -168,7 +168,15 @@ export default function Navbar() {
                 className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white transition hover:bg-white/10"
                 aria-label="Toggle theme"
               >
-                {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                {mounted ? (
+                  isDark ? (
+                    <Sun size={18} />
+                  ) : (
+                    <Moon size={18} />
+                  )
+                ) : (
+                  <span className="w-[18px] h-[18px]" />
+                )}
               </button>
               <button
                 type="button"
@@ -206,8 +214,16 @@ export default function Navbar() {
                     className="inline-flex w-full items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition hover:border-white/45 hover:bg-white/10"
                     aria-label="Toggle theme"
                   >
-                    {isDark ? <Sun size={18} /> : <Moon size={18} />}
-                    {isDark ? 'Light Mode' : 'Dark Mode'}
+                    {mounted ? (
+                      isDark ? (
+                        <Sun size={18} />
+                      ) : (
+                        <Moon size={18} />
+                      )
+                    ) : (
+                      <span className="w-[18px] h-[18px]" />
+                    )}
+                    {mounted ? (isDark ? 'Light Mode' : 'Dark Mode') : 'Theme'}
                   </button>
                 </li>
               </ul>
