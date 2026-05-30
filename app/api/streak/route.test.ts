@@ -100,6 +100,20 @@ describe('GET /api/streak', () => {
   });
 
   describe('parameter validation', () => {
+    it('falls back to default layout when an unsupported layout is provided', async () => {
+      const response = await GET(
+        makeRequest({
+          user: 'octocat',
+          layout: 'unsupported_layout',
+        })
+      );
+
+      expect(response.status).toBe(200);
+
+      const body = await response.text();
+
+      expect(body).toContain('<svg');
+    });
     it('returns 400 when the user parameter is missing', async () => {
       const response = await GET(makeRequest());
 
@@ -161,6 +175,14 @@ describe('GET /api/streak', () => {
       }
 
       expect(fetchGitHubContributions).not.toHaveBeenCalled();
+    });
+
+    it('returns 200 for unsupported ?layout query parameter values (route ignores it)', async () => {
+      const response = await GET(
+        new Request('http://localhost:3000/api/streak?user=octocat&layout=unsupported_layout')
+      );
+
+      expect(response.status).toBe(200);
     });
 
     it('should return 200 OK and valid SVG when the optional repo query parameter is provided', async () => {
@@ -437,6 +459,16 @@ describe('GET /api/streak', () => {
       });
     });
 
+    it('passes correct from/to range when ?year=2008 is provided', async () => {
+      await GET(makeRequest({ user: 'octocat', year: '2008' }));
+
+      expect(fetchGitHubContributions).toHaveBeenCalledWith('octocat', {
+        bypassCache: false,
+        from: '2008-01-01T00:00:00Z',
+        to: '2008-12-31T23:59:59Z',
+      });
+    });
+
     it('functions normally when the year parameter is missing', async () => {
       const response = await GET(makeRequest({ user: 'octocat' }));
 
@@ -449,6 +481,11 @@ describe('GET /api/streak', () => {
 
       expect(response.status).toBe(400);
       expect(body.details.fieldErrors.year[0]).toContain('GitHub was founded in 2008');
+    });
+
+    it('returns 200 for unknown ?date= parameter (not part of schema)', async () => {
+      const response = await GET(makeRequest({ user: 'octocat', date: '2026-15-40' }));
+      expect(response.status).toBe(200);
     });
 
     it('returns 400 for malformed numeric year', async () => {
@@ -1171,7 +1208,7 @@ describe('GET /api/streak', () => {
       const body = await response.text();
 
       expect(response.status).toBe(200);
-      expect(body).toContain('family=Inter&display=swap');
+      expect(body).toContain('family=Inter&amp;display=swap');
       expect(body).toContain('"Inter", sans-serif');
     });
   });
@@ -1187,6 +1224,20 @@ describe('GET /api/streak', () => {
       const response = await GET(makeRequest({ user: 'octocat', refresh: 'true' }));
 
       expect(response.headers.get('Cache-Control')).not.toContain('stale-while-revalidate=86400');
+    });
+  });
+
+  describe('org parameter validation', () => {
+    it('returns 400 when org parameter is a User instead of an Organization', async () => {
+      vi.mocked(getOrgDashboardData).mockRejectedValueOnce(
+        new Error('This endpoint is strictly for organizations.')
+      );
+
+      const response = await GET(makeRequest({ user: 'octocat', org: 'notanorg' }));
+      expect(response.status).toBe(400);
+
+      const body = await response.text();
+      expect(body).toContain('strictly for organizations');
     });
   });
 });

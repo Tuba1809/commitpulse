@@ -37,6 +37,9 @@ export interface BadgeTheme {
 
   /** Tower and glow accent color as a hex string WITHOUT the leading '#' (e.g. '58a6ff'). */
   accent: HexColor;
+
+  /** Negative/error state color as a hex string WITHOUT the leading '#' (e.g. 'ff4444'). Optional. */
+  negative?: HexColor;
 }
 
 /**
@@ -71,6 +74,9 @@ export interface ContributionCalendar {
 
   /** Array of weekly contribution data covering the queried date range. */
   weeks: ContributionWeek[];
+
+  /** Timestamp of the last successful GraphQL API sync. Used for delta updates. */
+  lastSyncedAt?: string;
 }
 
 /**
@@ -184,4 +190,28 @@ export interface BadgeParams {
 
   /** Opt-in to show volumetric gradients on the monolith floor. */
   gradient?: boolean;
+
+  disable_particles?: boolean;
+}
+
+export interface GraphNode {
+  id: string;
+  name: string;
+  type: 'User' | 'Repo' | 'Contribution' | 'Fork';
+  val: number;
+  color: string;
+  stats?: {
+    stars?: number;
+    forks?: number;
+    language?: string | null;
+    updatedAt?: string;
+    description?: string | null;
+  };
+  x?: number;
+  y?: number;
+}
+
+export interface GraphLink {
+  source: string | GraphNode;
+  target: string | GraphNode;
 }

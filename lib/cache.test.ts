@@ -29,6 +29,29 @@ describe('TTLCache', () => {
       expect(cache.get('user')).toBeNull();
       cache.destroy();
     });
+
+    it('handles deeply nested object values without crashing', () => {
+      const cache = new TTLCache<{
+        level1: {
+          level2: {
+            level3: string;
+          };
+        };
+      }>();
+
+      const nested = {
+        level1: {
+          level2: {
+            level3: 'value',
+          },
+        },
+      };
+
+      expect(() => cache.set('nested', nested, 60_000)).not.toThrow();
+      expect(cache.get('nested')).toEqual(nested);
+
+      cache.destroy();
+    });
   });
 
   describe('clear()', () => {
@@ -410,6 +433,15 @@ describe('TTLCache', () => {
       cache.destroy();
     });
 
+    it('rejects an empty string cache key', () => {
+      const cache = new TTLCache<string>();
+
+      expect(() => cache.set('', 'value', 60_000)).toThrow('Cache key cannot be empty');
+      expect(cache.has('')).toBe(false);
+
+      cache.destroy();
+    });
+
     it('handles rapid get/set/delete cycles', () => {
       const cache = new TTLCache<number>();
       for (let i = 0; i < 100; i++) {
@@ -470,6 +502,20 @@ describe('TTLCache', () => {
       cache.set('b', 'y', 60_000);
       cache.clear();
       expect(cache.size()).toBe(0);
+
+      cache.destroy();
+    });
+
+    it('verify TTLCache behavior for infinite TTL value (Variation 1)', () => {
+      const cache = new TTLCache<string>();
+
+      expect(() => {
+        cache.set('infinite-key', 'boundary-value', Infinity);
+      }).not.toThrow();
+
+      expect(cache.get('infinite-key')).toBe('boundary-value');
+
+      expect(cache.has('infinite-key')).toBe(true);
 
       cache.destroy();
     });

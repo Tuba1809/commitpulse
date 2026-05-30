@@ -2,10 +2,16 @@
 
 import type { BadgeParams, ContributionCalendar, StreakStats, MonthlyStats } from '../../types';
 import { getLabels, type BadgeLabels } from '../i18n/badgeLabels';
-import { AUTO_THEME_DARK, AUTO_THEME_LIGHT } from './themes';
+import { AUTO_THEME_DARK, AUTO_THEME_LIGHT, themes } from './themes';
 import { TOWER_ANIMATION_CSS } from './animations';
 import { computeTowers, type TowerData } from './layout';
-import { sanitizeFont, sanitizeHexColor, sanitizeRadius, sanitizeGoogleFontUrl } from './sanitizer';
+import {
+  sanitizeFont,
+  sanitizeHexColor,
+  sanitizeRadius,
+  sanitizeGoogleFontUrl,
+  getLuminance,
+} from './sanitizer';
 
 import { SVG_WIDTH, SVG_HEIGHT, FONT_MAP } from './generatorConstants';
 
@@ -16,7 +22,7 @@ export function getSizeScale(size?: 'small' | 'medium' | 'large') {
   return 1;
 }
 
-function truncateUsername(username: string): string {
+export function truncateUsername(username: string): string {
   return username.length > 12 ? `${username.slice(0, 12)}...` : username;
 }
 
@@ -80,13 +86,20 @@ function generateParticles(
     const fillAttr = autoTheme ? 'class="cp-accent-fill"' : `fill="${color}"`;
 
     particles += `
-      <circle ${fillAttr} cx="${x + offsetX}" cy="${y - height}" r="${1.5 * sf}" opacity="1">
+      <circle ${fillAttr} cx="${x + offsetX}" cy="${y - height}" r="${1.5 * sf}" opacity="1" pointer-events="none">
         <animate attributeName="cy" from="${y - height}" to="${y - height - Math.round(20 * sf)}" dur="1.5s" begin="${delay}s" repeatCount="indefinite" />
         <animate attributeName="opacity" from="1" to="0" dur="1.5s" begin="${delay}s" repeatCount="indefinite" />
       </circle>
     `;
   }
-  return `<g class="heat-particles">${particles}</g>`;
+  return `<g class="heat-particles" pointer-events="none">${particles}</g>`;
+}
+
+export function getInteractiveTowerCSS(accentColorExpr: string): string {
+  return `
+  .interactive-tower { transition: transform 0.2s ease, filter 0.2s ease; cursor: pointer; }
+  .interactive-tower:hover { transform: translateY(-4px); filter: brightness(1.2) drop-shadow(0 4px 8px ${accentColorExpr}); }
+  `;
 }
 
 // ── Section helpers for generateSVG ──────────────────────────────────────
@@ -181,9 +194,14 @@ function renderStyle(
   googleFontsImport: string,
   text: string,
   accent: string,
-  sf: number
+  sf: number,
+  bg: string
 ): string {
   const fs = (n: number) => Math.round(n * sf * 10) / 10;
+  const isLightBg = getLuminance(bg) > 0.5;
+  const labelFill = isLightBg ? text : accent;
+  const labelOpacity = isLightBg ? 0.8 : 0.7;
+
   return `
   <style>
   @import url('https://fonts.googleapis.com/css2?family=Fira+Code&amp;family=JetBrains+Mono&amp;family=Roboto&amp;family=Syncopate:wght@400;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap');
@@ -201,7 +219,7 @@ function renderStyle(
   .title { font-family: ${selectedFont || '"Syncopate", sans-serif'}; fill: ${text}; font-size: ${fs(18)}px; letter-spacing: ${fs(6)}px; font-weight: 400; opacity: 0.8; }
   .stats { font-family: ${statsFont}; fill: ${text}; font-size: ${fs(42)}px; font-weight: 500; letter-spacing: 0; }
   .total-val { font-family: ${statsFont}; fill: ${accent}; font-size: ${fs(24)}px; font-weight: 500; }
-  .label { font-family: "Roboto", sans-serif; fill: ${accent}; font-size: ${fs(11)}px; font-weight: 400; letter-spacing: ${fs(2)}px; opacity: 0.7; }
+  .label { font-family: "Roboto", sans-serif; fill: ${labelFill}; font-size: ${fs(11)}px; font-weight: 400; letter-spacing: ${fs(2)}px; opacity: ${labelOpacity}; }
   @media (prefers-reduced-motion: reduce) {
     .heat-particles { display: none; }
     .scan-line {
@@ -211,6 +229,7 @@ function renderStyle(
     }
   }
   .isometric-label { font-family: ${selectedFont || '"Roboto", sans-serif'}; font-size: ${fs(10)}px; font-weight: 400; letter-spacing: 1px; fill-opacity: 0.6; }
+  ${getInteractiveTowerCSS(`${accent}66`)}
   </style>`;
 }
 
@@ -291,21 +310,38 @@ function renderTowers(
     const strokeAttr = isGhost
       ? `stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}"`
       : '';
+
+    let leftStrokeAttr = strokeAttr;
+    let rightStrokeAttr = strokeAttr;
+    let topStrokeAttr = strokeAttr;
+
+    if (t.isToday && t.contributionCount === 0) {
+      const todayStrokeColor = isAutoTheme ? 'var(--cp-accent)' : strokeColor;
+      leftStrokeAttr = isGhost
+        ? `stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}"`
+        : '';
+      rightStrokeAttr = leftStrokeAttr;
+      topStrokeAttr = `stroke="${todayStrokeColor}" stroke-opacity="0.8" stroke-width="${1.2 * sf}"`;
+    }
+
     const delay = ((t.row + t.col) * 0.015).toFixed(3);
+
+    const metric =
+      t.contributionCount === 0 ? 'Rest day' : t.intensityLevel === 4 ? 'Peak day' : 'Active day';
 
     towers += `
         <g transform="translate(${t.x}, ${t.y})">
-          <g class="cp-tower" style="animation-delay: ${delay}s;">
-            ${t.isTodayWithCommits ? '<animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite" />' : ''}
+          <g class="cp-tower interactive-tower" data-date="${escapeXML(t.date)}" data-count="${t.contributionCount}" data-metric="${escapeXML(metric)}" style="animation-delay: ${delay}s;">
+            ${t.isToday ? '<animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite" />' : ''}
             <title>${escapeXML(t.tooltip)}</title>
-            <path d="M0 ${10 - t.h} L0 10 L-16 0 L-16 ${-t.h} Z" ${leftFillAttr} fill-opacity="${leftFaceOpacity}" ${strokeAttr} />
-            <path d="M0 ${10 - t.h} L0 10 L16 0 L16 ${-t.h} Z" ${rightFillAttr} fill-opacity="${rightFaceOpacity}" ${strokeAttr} />
-            <path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" ${finalTopFillAttr} fill-opacity="${topFaceOpacity}" ${strokeAttr} />
+            <path d="M0 ${10 - t.h} L0 10 L-16 0 L-16 ${-t.h} Z" ${leftFillAttr} fill-opacity="${leftFaceOpacity}" ${leftStrokeAttr} />
+            <path d="M0 ${10 - t.h} L0 10 L16 0 L16 ${-t.h} Z" ${rightFillAttr} fill-opacity="${rightFaceOpacity}" ${rightStrokeAttr} />
+            <path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" ${finalTopFillAttr} fill-opacity="${topFaceOpacity}" ${topStrokeAttr} />
             ${t.contributionCount > 5 ? `<path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" fill="white" fill-opacity="0.2" />` : ''}
           </g>
         </g>`;
 
-    if (t.contributionCount >= 10) {
+    if (t.contributionCount >= 10 && !params.disable_particles) {
       const pIdx = Math.min(t.intensityLevel - 1, accent.length - 1);
       const pColorResolved = Array.isArray(accent)
         ? accent[pIdx] || accent[accent.length - 1] || '00ffaa'
@@ -488,7 +524,7 @@ export function generateSVG(
   return `
 <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" role="img">
   ${renderHeader(safeUser, stats, sf, params)}
-  ${renderStyle(selectedFont, statsFont, googleFontsImport, text, mainAccentHex, sf)}
+  ${renderStyle(selectedFont, statsFont, googleFontsImport, text, mainAccentHex, sf, bg)}
   <rect width="${W}" height="${H}" rx="${radius}" fill="${params.hideBackground ? 'transparent' : bg}" ${borderAttr} />
   <g transform="translate(0, ${Math.round(20 * sf)})">${towers}</g>
   ${renderIsometricLabels(calendar, params, text, sf)}
@@ -503,6 +539,10 @@ function generateAutoThemeSVG(
 ): string {
   const light = AUTO_THEME_LIGHT;
   const dark = AUTO_THEME_DARK;
+  const lightLabelFill = getLuminance(light.bg) > 0.5 ? 'var(--cp-text)' : 'var(--cp-accent)';
+  const lightLabelOpacity = getLuminance(light.bg) > 0.5 ? '0.8' : '0.7';
+  const darkLabelFill = getLuminance(dark.bg) > 0.5 ? 'var(--cp-text)' : 'var(--cp-accent)';
+  const darkLabelOpacity = getLuminance(dark.bg) > 0.5 ? '0.8' : '0.7';
   const safeUser = escapeXML(params.user || 'GitHub User');
   const sanitizedFont = sanitizeFont(params.font);
   const selectedFont = sanitizedFont
@@ -512,7 +552,7 @@ function generateAutoThemeSVG(
   const statsFont = selectedFont || '"Space Grotesk", sans-serif';
   const googleFontUrlPart = sanitizedFont ? sanitizeGoogleFontUrl(sanitizedFont) : null;
   const googleFontsImport = googleFontUrlPart
-    ? `@import url('https://fonts.googleapis.com/css2?family=${googleFontUrlPart}&display=swap');`
+    ? `@import url('https://fonts.googleapis.com/css2?family=${googleFontUrlPart}&amp;display=swap');`
     : '';
   const sf = getSizeScale(params.size);
   const radius = sanitizeRadius(params.radius, 8) * sf;
@@ -543,8 +583,8 @@ function generateAutoThemeSVG(
   <style>
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code&amp;family=JetBrains+Mono&amp;family=Roboto&amp;family=Syncopate:wght@400;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap');
   ${googleFontsImport}
-  :root { --cp-bg: #${light.bg}; --cp-text: #${light.text}; --cp-accent: #${light.accent}; }
-  @media (prefers-color-scheme: dark) { :root { --cp-bg: #${dark.bg}; --cp-text: #${dark.text}; --cp-accent: #${dark.accent}; } }
+  :root { --cp-bg: #${light.bg}; --cp-text: #${light.text}; --cp-accent: #${light.accent}; --cp-label-fill: ${lightLabelFill}; --cp-label-opacity: ${lightLabelOpacity}; }
+  @media (prefers-color-scheme: dark) { :root { --cp-bg: #${dark.bg}; --cp-text: #${dark.text}; --cp-accent: #${dark.accent}; --cp-label-fill: ${darkLabelFill}; --cp-label-opacity: ${darkLabelOpacity}; } }
   .cp-bg-fill { fill: var(--cp-bg); } .cp-text-fill { fill: var(--cp-text); color: var(--cp-text); } .cp-accent-fill { fill: var(--cp-accent); color: var(--cp-accent); }
   ${TOWER_ANIMATION_CSS}
   .scan-line {
@@ -559,8 +599,9 @@ function generateAutoThemeSVG(
   .title { font-family: ${selectedFont || '"Syncopate", sans-serif'}; fill: var(--cp-text); font-size: ${fs(18)}px; letter-spacing: ${fs(6)}px; font-weight: 400; opacity: 0.8; }
   .stats { font-family: ${statsFont}; fill: var(--cp-text); font-size: ${fs(42)}px; font-weight: 500; letter-spacing: 0; }
   .total-val { font-family: ${statsFont}; fill: var(--cp-accent); font-size: ${fs(24)}px; font-weight: 500; }
-  .label { font-family: "Roboto", sans-serif; fill: var(--cp-accent); font-size: ${fs(11)}px; font-weight: 400; letter-spacing: ${fs(2)}px; opacity: 0.7; }
+  .label { font-family: "Roboto", sans-serif; fill: var(--cp-label-fill); font-size: ${fs(11)}px; font-weight: 400; letter-spacing: ${fs(2)}px; opacity: var(--cp-label-opacity); }
   .isometric-label { font-family: ${selectedFont || '"Roboto", sans-serif'}; font-size: ${fs(10)}px; font-weight: 400; letter-spacing: 1px; fill-opacity: 0.6; }
+  ${getInteractiveTowerCSS('var(--cp-accent)')}
 
   @media (prefers-reduced-motion: reduce) {
     .heat-particles { display: none; }
@@ -667,7 +708,22 @@ export function generateMonthlySVG(stats: MonthlyStats, params: BadgeParams): st
             ? `${stats.deltaPercentage}%`
             : `0%`;
   }
-  const deltaColor = stats.deltaAbsolute >= 0 ? accent : '#ff4444';
+  // Resolve negative color
+  let negativeColor = '#ff4444';
+  const cleanBg = sanitizeHexColor(params.bg, '0d1117');
+  const matchedTheme = Object.values(themes).find(
+    (t) => t.bg.toLowerCase() === cleanBg.toLowerCase()
+  );
+
+  if (matchedTheme && matchedTheme.negative) {
+    negativeColor = `#${matchedTheme.negative}`;
+  } else {
+    // Dynamic fallback based on background luminance
+    const luminance = getLuminance(cleanBg);
+    negativeColor = luminance > 0.5 ? '#cf222e' : '#f85149';
+  }
+
+  const deltaColor = stats.deltaAbsolute >= 0 ? accent : negativeColor;
 
   return `
 <svg
@@ -706,6 +762,279 @@ export function generateMonthlySVG(stats: MonthlyStats, params: BadgeParams): st
 `;
 }
 
+export function generateWrappedSVG(
+  stats: import('../../types/dashboard').WrappedStats,
+  params: BadgeParams,
+  year: string,
+  calendar: ContributionCalendar
+): string {
+  const safeUser = escapeXML(params.user || 'GitHub User');
+  const bg = `#${sanitizeHexColor(params.bg, '0d1117')}`;
+
+  const rawAccent = Array.isArray(params.accent)
+    ? params.accent[params.accent.length - 1]
+    : params.accent;
+  const accent = `#${sanitizeHexColor(rawAccent, '00ffaa')}`;
+
+  const text = `#${sanitizeHexColor(params.text, 'ffffff')}`;
+
+  const sanitizedFont = sanitizeFont(params.font);
+  const predefinedFont = sanitizedFont
+    ? (FONT_MAP[sanitizedFont.toLowerCase() as keyof typeof FONT_MAP] ?? null)
+    : null;
+  const isPredefinedFont = Boolean(predefinedFont);
+  const selectedFont = isPredefinedFont
+    ? predefinedFont
+    : sanitizedFont
+      ? `"${sanitizedFont}", sans-serif`
+      : null;
+
+  const statsFont = selectedFont || '"Space Grotesk", sans-serif';
+  const parsedRadius = Number(params.radius);
+  const radius = Math.max(0, Math.min(Number.isNaN(parsedRadius) ? 8 : parsedRadius, 50));
+
+  const width = params.width || 420;
+  const height = params.height || 260;
+
+  const googleFontUrlPart =
+    sanitizedFont && !isPredefinedFont ? sanitizeGoogleFontUrl(sanitizedFont) : null;
+  const googleFontsImport = googleFontUrlPart
+    ? `@import url('https://fonts.googleapis.com/css2?family=${googleFontUrlPart}&amp;display=swap');`
+    : '';
+
+  // Format month name (e.g. "2025-11" -> "NOVEMBER")
+  const MONTH_NAMES: Record<string, string> = {
+    '01': 'JANUARY',
+    '02': 'FEBRUARY',
+    '03': 'MARCH',
+    '04': 'APRIL',
+    '05': 'MAY',
+    '06': 'JUNE',
+    '07': 'JULY',
+    '08': 'AUGUST',
+    '09': 'SEPTEMBER',
+    '10': 'OCTOBER',
+    '11': 'NOVEMBER',
+    '12': 'DECEMBER',
+  };
+  const monthPart = stats.busiestMonth?.split('-')[1];
+  const monthName = monthPart
+    ? MONTH_NAMES[monthPart] || stats.busiestMonth
+    : stats.busiestMonth || 'N/A';
+
+  // Format peak day (e.g. "2025-11-20" -> "Nov 20")
+  function formatActiveDate(dateStr: string): string {
+    if (!dateStr) return 'N/A';
+    const parts = dateStr.split('-');
+    const mPart = parts[1];
+    const dPart = parts[2];
+    if (!mPart || !dPart) return dateStr;
+    const monthAbbrs: Record<string, string> = {
+      '01': 'Jan',
+      '02': 'Feb',
+      '03': 'Mar',
+      '04': 'Apr',
+      '05': 'May',
+      '06': 'Jun',
+      '07': 'Jul',
+      '08': 'Aug',
+      '09': 'Sep',
+      '10': 'Oct',
+      '11': 'Nov',
+      '12': 'Dec',
+    };
+    const m = monthAbbrs[mPart] || mPart;
+    return `${m} ${parseInt(dPart, 10)}`;
+  }
+  const formattedPeakDate = formatActiveDate(stats.mostActiveDate);
+
+  // Circular progress calculations for weekend grind
+  // Radius = 14, circumference = 2 * PI * 14 = 87.96
+  const radiusCircle = 14;
+  const circ = 2 * Math.PI * radiusCircle; // ~87.96
+  const clampedRatio = Math.max(0, Math.min(stats.weekendRatio || 0, 100));
+  const strokeDashoffset = circ - (clampedRatio / 100) * circ;
+
+  // Background Mini-Monolith calculations
+  // Get 14 weeks of towers and scale them down
+  const sf = 0.45; // scale down
+  const rawTowers = computeTowers(calendar, params.scale, '', 'commits');
+  // We want to translate them to align beautifully behind the total contributions count
+  // Scale raw coordinates: tx * sf, ty * sf
+  let bgTowersMarkup = '';
+  const resolvedSolidColor = accent;
+  for (const t of rawTowers) {
+    // Only draw towers that have contributions or represent ghost city landscape
+    // We scale down the height and coordinates
+    const scaleHeight = t.h * sf;
+    const scaleX = Math.round(t.x * sf) - 50; // offset left to shift it to the background
+    const scaleY = Math.round(t.y * sf) + 80; // shift down slightly
+
+    // Extreme low opacity for elegant backdrop watermark
+    const leftFaceOpacity = t.isGhost ? 0.01 : 0.015;
+    const rightFaceOpacity = t.isGhost ? 0.005 : 0.01;
+    const topFaceOpacity = t.isGhost ? 0.02 : 0.035;
+    const strokeOpacity = t.isGhost ? 0.03 : 0.02;
+
+    bgTowersMarkup += `
+        <g transform="translate(${scaleX}, ${scaleY})">
+          <path d="M0 ${4.5 - scaleHeight} L0 4.5 L-7.2 0 L-7.2 ${-scaleHeight} Z" fill="${resolvedSolidColor}" fill-opacity="${leftFaceOpacity}" stroke="${resolvedSolidColor}" stroke-opacity="${strokeOpacity}" stroke-width="0.22" />
+          <path d="M0 ${4.5 - scaleHeight} L0 4.5 L7.2 0 L7.2 ${-scaleHeight} Z" fill="${resolvedSolidColor}" fill-opacity="${rightFaceOpacity}" stroke="${resolvedSolidColor}" stroke-opacity="${strokeOpacity}" stroke-width="0.22" />
+          <path d="M0 ${-scaleHeight} L7.2 ${4.5 - scaleHeight} L0 ${9 - scaleHeight} L-7.2 ${4.5 - scaleHeight} Z" fill="${resolvedSolidColor}" fill-opacity="${topFaceOpacity}" stroke="${resolvedSolidColor}" stroke-opacity="${strokeOpacity}" stroke-width="0.22" />
+        </g>`;
+  }
+
+  // Border override or default glow
+  const borderAttr = params.border
+    ? `stroke="#${sanitizeHexColor(params.border, '58a6ff')}" stroke-width="1.5"`
+    : `stroke="${accent}" stroke-opacity="0.15" stroke-width="1.5"`;
+
+  const autoThemeVariables = params.autoTheme
+    ? `
+    :root { --cp-bg: #${AUTO_THEME_LIGHT.bg}; --cp-text: #${AUTO_THEME_LIGHT.text}; --cp-accent: #${AUTO_THEME_LIGHT.accent}; }
+    @media (prefers-color-scheme: dark) { :root { --cp-bg: #${AUTO_THEME_DARK.bg}; --cp-text: #${AUTO_THEME_DARK.text}; --cp-accent: #${AUTO_THEME_DARK.accent}; } }
+    .cp-bg-fill { fill: var(--cp-bg); }
+    .cp-text-fill { fill: var(--cp-text); }
+    .cp-accent-fill { fill: var(--cp-accent); }
+    .cp-accent-stroke { stroke: var(--cp-accent); }
+  `
+    : '';
+
+  const rectFill = params.autoTheme
+    ? 'class="cp-bg-fill"'
+    : `fill="${params.hideBackground ? 'transparent' : bg}"`;
+  const textClass = params.autoTheme ? 'class="cp-text-fill"' : `fill="${text}"`;
+  const accentClass = params.autoTheme ? 'class="cp-accent-fill"' : `fill="${accent}"`;
+  const borderStroke = params.autoTheme
+    ? 'class="cp-accent-stroke" stroke-opacity="0.15" stroke-width="1.5"'
+    : borderAttr;
+
+  return `
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="${width}"
+  height="${height}"
+  viewBox="0 0 420 260"
+  fill="none"
+  role="img"
+>
+  <title>${safeUser}'s GitHub Wrapped ${year}</title>
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code&amp;family=JetBrains+Mono&amp;family=Roboto:wght@400;500;700&amp;family=Syncopate:wght@700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap');
+  ${googleFontsImport}
+  ${autoThemeVariables}
+
+  .title-user { font-family: ${selectedFont || '"Syncopate", sans-serif'}; font-weight: 700; font-size: 13px; letter-spacing: 2.5px; opacity: 0.85; }
+  .title-wrapped { font-family: ${selectedFont || '"Syncopate", sans-serif'}; font-weight: 700; font-size: 13px; letter-spacing: 2.5px; }
+  
+  .total-commits { font-family: ${statsFont}; font-size: 46px; font-weight: 700; }
+  .total-label { font-family: "Roboto", sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 1.5px; opacity: 0.5; }
+  
+  .grid-label { font-family: "Roboto", sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; opacity: 0.5; }
+  .grid-val { font-family: ${statsFont}; font-size: 14.5px; font-weight: 600; }
+  
+  .scan-line {
+    animation: scan-sweep var(--scan-speed, 8s) linear infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  @keyframes scan-sweep {
+    from { transform: translateY(0px); }
+    to { transform: translateY(230px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scan-line { animation: none !important; display: none; }
+  }
+  </style>
+
+  <rect width="420" height="260" rx="${radius}" ${rectFill} ${borderStroke} />
+
+  <!-- Background holographic mini-monolith -->
+  <g opacity="0.8">
+    ${bgTowersMarkup}
+  </g>
+
+  <!-- Horizontal holographic scan-line -->
+  <rect
+    x="15"
+    y="15"
+    width="390"
+    height="1"
+    ${accentClass}
+    class="scan-line"
+    fill-opacity="0.18"
+    style="--scan-speed: ${params.speed || '8s'};"
+  />
+
+  <!-- Header -->
+  <g transform="translate(25, 45)">
+    <text x="0" y="0" class="title-user" ${textClass}>${safeUser.toUpperCase()}'S GRIND</text>
+    <text x="370" y="0" text-anchor="end" class="title-wrapped" ${accentClass}>${year} WRAPPED</text>
+    <line x1="0" y1="12" x2="370" y2="12" stroke="${params.autoTheme ? 'var(--cp-accent)' : accent}" stroke-opacity="0.15" stroke-width="1" />
+  </g>
+
+  <!-- Left Stats Block (Total contributions) -->
+  <g transform="translate(25, 120)">
+    <text x="0" y="15" class="total-commits" ${accentClass} filter="url(#glow)">${stats.totalContributions}</text>
+    <text x="2" y="38" class="total-label" ${textClass}>TOTAL CONTRIBUTIONS</text>
+  </g>
+
+  <!-- Vertical Divider -->
+  <line x1="185" y1="80" x2="185" y2="230" stroke="${params.autoTheme ? 'var(--cp-accent)' : accent}" stroke-opacity="0.12" stroke-width="1" stroke-dasharray="3 3" />
+
+  <!-- Right Section: 2x2 Spaced Grid -->
+  <!-- Row 1: Top Language (Col 1) and Weekend Grind (Col 2) -->
+  <g transform="translate(210, 80)">
+    <!-- Top Language -->
+    <g transform="translate(0, 20)">
+      <text x="0" y="0" class="grid-label" ${textClass}>TOP LANGUAGE</text>
+      <text x="0" y="20" class="grid-val" ${accentClass}>${stats.topLanguage || 'Unknown'}</text>
+    </g>
+
+    <!-- Weekend Grind Progress Arc -->
+    <g transform="translate(130, 20)">
+      <text x="0" y="0" class="grid-label" ${textClass}>WEEKEND GRIND</text>
+      <g transform="translate(25, 24)">
+        <!-- Background Track -->
+        <circle cx="0" cy="0" r="14" stroke="${params.autoTheme ? 'var(--cp-text)' : text}" stroke-opacity="0.1" stroke-width="2.5" fill="none" />
+        <!-- Progress Bar -->
+        <circle cx="0" cy="0" r="14" stroke="${params.autoTheme ? 'var(--cp-accent)' : accent}" stroke-width="3" fill="none"
+                stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${strokeDashoffset.toFixed(2)}"
+                stroke-linecap="round" transform="rotate(-90)" />
+        <!-- Text inside progress circle -->
+        <text x="0" y="3.5" text-anchor="middle" font-family="${statsFont}" font-size="9" font-weight="700" ${textClass}>${clampedRatio}%</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Row 2: Peak Day -->
+  <g transform="translate(210, 150)">
+    <text x="0" y="0" class="grid-label" ${textClass}>PEAK DAY</text>
+    <text x="0" y="20" class="grid-val" ${textClass}>
+      ${stats.highestDailyCount} COMMITS
+      <tspan font-size="10.5" font-weight="500" ${accentClass} opacity="0.8">ON ${formattedPeakDate.toUpperCase()}</tspan>
+    </text>
+  </g>
+
+  <!-- Row 3: Busiest Month -->
+  <g transform="translate(210, 205)">
+    <text x="0" y="0" class="grid-label" ${textClass}>BUSIEST MONTH</text>
+    <text x="0" y="20" class="grid-val" ${textClass}>
+      ${monthName}
+      <tspan font-size="11" font-weight="500" ${accentClass}>🔥</tspan>
+    </text>
+  </g>
+</svg>
+`;
+}
+
 function generateAutoThemeMonthlySVG(stats: MonthlyStats, params: BadgeParams): string {
   const light = AUTO_THEME_LIGHT;
   const dark = AUTO_THEME_DARK;
@@ -719,7 +1048,7 @@ function generateAutoThemeMonthlySVG(stats: MonthlyStats, params: BadgeParams): 
   const statsFont = selectedFont || '"Space Grotesk", sans-serif';
   const googleFontUrlPart = sanitizedFont ? sanitizeGoogleFontUrl(sanitizedFont) : null;
   const googleFontsImport = googleFontUrlPart
-    ? `@import url('https://fonts.googleapis.com/css2?family=${googleFontUrlPart}&display=swap');`
+    ? `@import url('https://fonts.googleapis.com/css2?family=${googleFontUrlPart}&amp;display=swap');`
     : '';
   const parsedRadius = Number(params.radius);
   const radius = Math.max(0, Math.min(Number.isNaN(parsedRadius) ? 8 : parsedRadius, 50));
@@ -772,8 +1101,8 @@ function generateAutoThemeMonthlySVG(stats: MonthlyStats, params: BadgeParams): 
   <style>
   @import url('https://fonts.googleapis.com/css2?family=Fira+Code&amp;family=JetBrains+Mono&amp;family=Roboto&amp;family=Syncopate:wght@400;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap');
   ${googleFontsImport}
-  :root { --cp-bg: #${light.bg}; --cp-text: #${light.text}; --cp-accent: #${light.accent}; --cp-negative: #ff4444; }
-  @media (prefers-color-scheme: dark) { :root { --cp-bg: #${dark.bg}; --cp-text: #${dark.text}; --cp-accent: #${dark.accent}; --cp-negative: #ff6666; } }
+  :root { --cp-bg: #${light.bg}; --cp-text: #${light.text}; --cp-accent: #${light.accent}; --cp-negative: #${light.negative || 'cf222e'}; }
+  @media (prefers-color-scheme: dark) { :root { --cp-bg: #${dark.bg}; --cp-text: #${dark.text}; --cp-accent: #${dark.accent}; --cp-negative: #${dark.negative || 'f85149'}; } }
   .cp-bg-fill { fill: var(--cp-bg); } 
   .cp-text-fill { fill: var(--cp-text); color: var(--cp-text); } 
   .cp-accent-fill { fill: var(--cp-accent); color: var(--cp-accent); }
@@ -1038,7 +1367,7 @@ export function generateVersusSVG(
   <title>CommitPulse Versus Stats: ${safeUser1} vs ${safeUser2}</title>
   <desc>${safeUser1} has ${stats1.totalContributions} ${unit}. ${safeUser2} has ${stats2.totalContributions} ${unit}.</desc>
   ${renderDefs(sf, params)}
-  ${renderStyle(selectedFont, statsFont, googleFontsImport, text, accent, sf)}
+  ${renderStyle(selectedFont, statsFont, googleFontsImport, text, accent, sf, bg)}
   <rect width="${W}" height="${H}" rx="${radius}" fill="${params.hideBackground ? 'transparent' : bg}" />
   
   <g transform="translate(0, 0)">
@@ -1071,6 +1400,10 @@ function generateAutoThemeVersusSVG(
 ): string {
   const light = AUTO_THEME_LIGHT;
   const dark = AUTO_THEME_DARK;
+  const lightLabelFill = getLuminance(light.bg) > 0.5 ? 'var(--cp-text)' : 'var(--cp-accent)';
+  const lightLabelOpacity = getLuminance(light.bg) > 0.5 ? '0.8' : '0.7';
+  const darkLabelFill = getLuminance(dark.bg) > 0.5 ? 'var(--cp-text)' : 'var(--cp-accent)';
+  const darkLabelOpacity = getLuminance(dark.bg) > 0.5 ? '0.8' : '0.7';
   const safeUser1 = escapeXML(params.user || 'User 1');
   const safeUser2 = escapeXML(params.versus || 'User 2');
   const sanitizedFont = sanitizeFont(params.font);
@@ -1101,14 +1434,27 @@ function generateAutoThemeVersusSVG(
     const fillClass = t.isGhost ? 'cp-text-fill' : 'cp-accent-fill';
     const strokeColor = t.isGhost ? 'var(--cp-text)' : 'var(--cp-accent)';
     const delay = ((t.row + t.col) * 0.015).toFixed(3);
+
+    let leftStrokeAttr = `stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}"`;
+    let rightStrokeAttr = leftStrokeAttr;
+    let topStrokeAttr = leftStrokeAttr;
+
+    if (t.isToday && t.contributionCount === 0) {
+      leftStrokeAttr = t.isGhost
+        ? `stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}"`
+        : '';
+      rightStrokeAttr = leftStrokeAttr;
+      topStrokeAttr = `stroke="var(--cp-accent)" stroke-opacity="0.8" stroke-width="${1.2 * sf}"`;
+    }
+
     towers1 += `
         <g transform="translate(${t.x}, ${t.y})">
           <g class="cp-tower" style="animation-delay: ${delay}s;">
-            ${t.isTodayWithCommits ? '<animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite" />' : ''}
+            ${t.isToday ? '<animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite" />' : ''}
             <title>${escapeXML(t.tooltip)}</title>
-            <path d="M0 ${10 - t.h} L0 10 L-16 0 L-16 ${-t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.left}" stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}" />
-            <path d="M0 ${10 - t.h} L0 10 L16 0 L16 ${-t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.right}" stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}" />
-            <path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.top}" stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}" />
+            <path d="M0 ${10 - t.h} L0 10 L-16 0 L-16 ${-t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.left}" ${leftStrokeAttr} />
+            <path d="M0 ${10 - t.h} L0 10 L16 0 L16 ${-t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.right}" ${rightStrokeAttr} />
+            <path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.top}" ${topStrokeAttr} />
             ${t.contributionCount > 5 ? `<path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" fill="white" fill-opacity="0.2" />` : ''}
           </g>
         </g>`;
@@ -1121,14 +1467,27 @@ function generateAutoThemeVersusSVG(
     const fillClass = t.isGhost ? 'cp-text-fill' : 'cp-accent-fill';
     const strokeColor = t.isGhost ? 'var(--cp-text)' : 'var(--cp-accent)';
     const delay = ((t.row + t.col) * 0.015).toFixed(3);
+
+    let leftStrokeAttr = `stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}"`;
+    let rightStrokeAttr = leftStrokeAttr;
+    let topStrokeAttr = leftStrokeAttr;
+
+    if (t.isToday && t.contributionCount === 0) {
+      leftStrokeAttr = t.isGhost
+        ? `stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}"`
+        : '';
+      rightStrokeAttr = leftStrokeAttr;
+      topStrokeAttr = `stroke="var(--cp-accent)" stroke-opacity="0.8" stroke-width="${1.2 * sf}"`;
+    }
+
     towers2 += `
         <g transform="translate(${t.x}, ${t.y})">
           <g class="cp-tower" style="animation-delay: ${delay}s;">
-            ${t.isTodayWithCommits ? '<animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite" />' : ''}
+            ${t.isToday ? '<animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite" />' : ''}
             <title>${escapeXML(t.tooltip)}</title>
-            <path d="M0 ${10 - t.h} L0 10 L-16 0 L-16 ${-t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.left}" stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}" />
-            <path d="M0 ${10 - t.h} L0 10 L16 0 L16 ${-t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.right}" stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}" />
-            <path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.top}" stroke="${strokeColor}" stroke-opacity="${t.strokeOpacity}" stroke-width="${t.strokeWidth}" />
+            <path d="M0 ${10 - t.h} L0 10 L-16 0 L-16 ${-t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.left}" ${leftStrokeAttr} />
+            <path d="M0 ${10 - t.h} L0 10 L16 0 L16 ${-t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.right}" ${rightStrokeAttr} />
+            <path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" class="${fillClass}" fill-opacity="${t.faceOpacity.top}" ${topStrokeAttr} />
             ${t.contributionCount > 5 ? `<path d="M0 ${-t.h} L16 ${10 - t.h} L0 ${20 - t.h} L-16 ${10 - t.h} Z" fill="white" fill-opacity="0.2" />` : ''}
           </g>
         </g>`;
@@ -1148,8 +1507,8 @@ function generateAutoThemeVersusSVG(
   
   <style>
   @import url('https://fonts.googleapis.com/css2?family=Fira+Code&amp;family=JetBrains+Mono&amp;family=Roboto&amp;family=Syncopate:wght@400;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap');
-  :root { --cp-bg: #${light.bg}; --cp-text: #${light.text}; --cp-accent: #${light.accent}; }
-  @media (prefers-color-scheme: dark) { :root { --cp-bg: #${dark.bg}; --cp-text: #${dark.text}; --cp-accent: #${dark.accent}; } }
+  :root { --cp-bg: #${light.bg}; --cp-text: #${light.text}; --cp-accent: #${light.accent}; --cp-label-fill: ${lightLabelFill}; --cp-label-opacity: ${lightLabelOpacity}; }
+  @media (prefers-color-scheme: dark) { :root { --cp-bg: #${dark.bg}; --cp-text: #${dark.text}; --cp-accent: #${dark.accent}; --cp-label-fill: ${darkLabelFill}; --cp-label-opacity: ${darkLabelOpacity}; } }
   .cp-bg-fill { fill: var(--cp-bg); } .cp-text-fill { fill: var(--cp-text); color: var(--cp-text); } .cp-accent-fill { fill: var(--cp-accent); color: var(--cp-accent); }
   ${TOWER_ANIMATION_CSS}
   .scan-line {
@@ -1164,7 +1523,7 @@ function generateAutoThemeVersusSVG(
   .title { font-family: ${selectedFont || '"Syncopate", sans-serif'}; fill: var(--cp-text); font-size: ${fs(18)}px; letter-spacing: ${fs(6)}px; font-weight: 400; opacity: 0.8; }
   .stats { font-family: ${statsFont}; fill: var(--cp-text); font-size: ${fs(42)}px; font-weight: 500; letter-spacing: 0; }
   .total-val { font-family: ${statsFont}; fill: var(--cp-accent); font-size: ${fs(24)}px; font-weight: 500; }
-  .label { font-family: "Roboto", sans-serif; fill: var(--cp-accent); font-size: ${fs(11)}px; font-weight: 400; letter-spacing: ${fs(2)}px; opacity: 0.7; }
+  .label { font-family: "Roboto", sans-serif; fill: var(--cp-label-fill); font-size: ${fs(11)}px; font-weight: 400; letter-spacing: ${fs(2)}px; opacity: var(--cp-label-opacity); }
   .isometric-label { font-family: ${selectedFont || '"Roboto", sans-serif'}; font-size: ${fs(10)}px; font-weight: 400; letter-spacing: 1px; fill-opacity: 0.6; }
 
   @media (prefers-reduced-motion: reduce) {
