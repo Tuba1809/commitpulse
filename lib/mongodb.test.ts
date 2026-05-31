@@ -104,8 +104,6 @@ describe('dbConnect', () => {
   it('handles mongoose Connection State 0 (disconnected) gracefully', async () => {
     process.env.MONGODB_URI = 'mongodb://localhost:27017/test';
     global.mongoose.conn = null;
-
-    const mockMongoose = { connection: 'mock' };
     vi.mocked(mongoose.connect).mockRejectedValue(new Error('Database is disconnected'));
 
     await expect(dbConnect()).rejects.toThrow('Database is disconnected');
