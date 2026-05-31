@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, RefreshCw, Share2 } from 'lucide-react';
 import Link from 'next/link';
@@ -330,6 +330,10 @@ export default function DashboardClient({ initialData, username, period }: Dashb
   const [isLoadingSecond, setIsLoadingSecond] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
 
+  const modalRef = useRef<HTMLDivElement>(null);
+  const compareInputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
   // Close modal on escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -339,6 +343,53 @@ export default function DashboardClient({ initialData, username, period }: Dashb
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Focus trap: constrain Tab navigation within the modal when open
+  const handleModalKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab' || !modalRef.current) return;
+
+    const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]'
+    );
+    if (focusableElements.length === 0) return;
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    // If focus is not within the modal, force it back inside
+    const activeEl = document.activeElement;
+    const isFocusInModal = modalRef.current.contains(activeEl);
+
+    if (!isFocusInModal) {
+      e.preventDefault();
+      firstElement.focus();
+      return;
+    }
+
+    if (e.shiftKey) {
+      if (activeEl === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      }
+    } else {
+      if (activeEl === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    }
+  }, []);
+
+  // Restore focus to trigger button when modal closes
+  useEffect(() => {
+    if (!isModalOpen) {
+      triggerRef.current?.focus();
+    }
+  }, [isModalOpen]);
+
+  // Auto-focus callback for the modal animation completion
+  const handleModalAnimationComplete = useCallback(() => {
+    compareInputRef.current?.focus();
   }, []);
 
   const handleOpenModal = () => {
@@ -503,6 +554,7 @@ export default function DashboardClient({ initialData, username, period }: Dashb
                 Profile Optimizer
               </button>
               <button
+                ref={triggerRef}
                 onClick={handleOpenModal}
                 className="flex items-center gap-2 rounded-xl border border-black/10 dark:border-[rgba(255,255,255,0.15)] bg-black dark:bg-[#111] hover:bg-zinc-800 dark:hover:bg-zinc-900 px-4 py-2 text-sm font-semibold text-white dark:text-white transition-all duration-200 active:scale-[0.98]"
               >
@@ -1003,7 +1055,10 @@ export default function DashboardClient({ initialData, username, period }: Dashb
       {/* Compare Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            onKeyDown={handleModalKeyDown}
+          >
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -1011,14 +1066,20 @@ export default function DashboardClient({ initialData, username, period }: Dashb
               exit={{ opacity: 0 }}
               onClick={() => setIsModalOpen(false)}
               className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              aria-hidden="true"
             />
 
             {/* Modal Dialog */}
             <motion.div
+              ref={modalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="compare-modal-title"
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 16 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              onAnimationComplete={handleModalAnimationComplete}
               className="relative w-full max-w-md overflow-hidden rounded-2xl border border-black/10 bg-white p-6 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#0a0a0a] shadow-xl"
             >
               {/* Close Button */}
@@ -1031,7 +1092,10 @@ export default function DashboardClient({ initialData, username, period }: Dashb
               </button>
 
               <div className="mb-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                <h3
+                  id="compare-modal-title"
+                  className="text-lg font-bold text-gray-900 dark:text-white mb-1"
+                >
                   Compare Profile
                 </h3>
                 <p className="text-xs text-[#A1A1AA] leading-relaxed">
@@ -1043,6 +1107,7 @@ export default function DashboardClient({ initialData, username, period }: Dashb
               <form onSubmit={handleFetchComparison} className="space-y-4">
                 <div className="relative flex items-center">
                   <input
+                    ref={compareInputRef}
                     type="text"
                     required
                     disabled={isLoadingSecond}
