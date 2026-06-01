@@ -388,10 +388,13 @@ export const compareParamsSchema = z
       .max(39, { message: 'GitHub username cannot exceed 39 characters' })
       .regex(GITHUB_USERNAME_REGEX, { message: 'Invalid GitHub username for user2' }),
   })
-  .refine((data) => data.user1.toLowerCase() !== data.user2.toLowerCase(), {
-    message: 'Cannot compare a user with themselves.',
-    path: ['user2'],
-  });
+  .refine(
+    (data) => data.user1.localeCompare(data.user2, undefined, { sensitivity: 'base' }) !== 0,
+    {
+      message: 'Cannot compare a user with themselves.',
+      path: ['user2'],
+    }
+  );
 
 export const ogParamsSchema = z
   .object({
