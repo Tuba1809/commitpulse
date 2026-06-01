@@ -1264,6 +1264,7 @@ export async function getWrappedData(
     busiestMonth,
     weekendRatio,
     topLanguage,
+    calendar,
   };
 }
 
