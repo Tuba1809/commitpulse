@@ -3,15 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DiscordButton } from './DiscordButton';
 
-vi.mock(
-  'gsap',
-  () => ({
-    default: {
-      to: vi.fn(),
-    },
-  }),
-  { virtual: true }
-);
+vi.mock('gsap', () => ({
+  default: {
+    to: vi.fn(),
+  },
+}));
 
 vi.mock('framer-motion', () => ({
   motion: {
