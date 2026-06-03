@@ -242,6 +242,27 @@ describe('generateSVG', () => {
     expect(svg).toContain('ffffff'); // default text
   });
 
+  it('renders correctly with github theme parameters', () => {
+    const svg = generateSVG(
+      mockStats,
+      {
+        user: 'avi',
+        bg: themes.github.bg,
+        text: themes.github.text,
+        accent: themes.github.accent,
+      } as unknown as BadgeParams,
+      mockCalendar
+    );
+
+    assertValidSVG(svg);
+    // Background fill color
+    expect(svg).toContain('#0d1117');
+    // Accent color should be standard brand-consistent #238636
+    expect(svg).toContain('#238636');
+    // Text color should be #ffffff
+    expect(svg).toContain('#ffffff');
+  });
+
   it('adjusts label styling contrast on light backgrounds versus dark backgrounds', () => {
     // 1. Light background (bg: 'ffffff') should use text color for label fill and 0.8 opacity
     const svgLight = generateSVG(
@@ -822,6 +843,29 @@ describe('generateSVG', () => {
       );
 
       expect(svg).toContain('OCTOCAT');
+    });
+  });
+
+  describe('isOfflineFallback parameter', () => {
+    it('appends [STALE CACHE] to the username when isOfflineFallback is true', () => {
+      const svg = generateSVG(
+        mockStats,
+        { user: 'octocat', isOfflineFallback: true } as unknown as BadgeParams,
+        mockCalendar
+      );
+
+      expect(svg).toContain('[STALE CACHE]');
+      expect(svg).toContain('fill="#ff9f43"');
+    });
+
+    it('does not append [STALE CACHE] when isOfflineFallback is false or omitted', () => {
+      const svg = generateSVG(
+        mockStats,
+        { user: 'octocat' } as unknown as BadgeParams,
+        mockCalendar
+      );
+
+      expect(svg).not.toContain('[STALE CACHE]');
     });
   });
 

@@ -1,19 +1,24 @@
 'use client';
 import { trackUser } from '@/utils/tracking';
+
 import Link from 'next/link';
 import { useRef, useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { X } from 'lucide-react';
 
 import { CommitPulseLogo } from '@/components/commitpulse-logo';
 import { CustomizeCTA } from './components/CustomizeCTA';
 import { useRecentSearches } from '@/hooks/useRecentSearches';
-import { useTranslation } from '@/context/TranslationContext';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Footer } from '@/app/components/Footer';
 
 import { FeatureCard, FeatureCardsSection } from '@/components/FeatureCards';
-import { WallOfLove } from '@/components/WallOfLove';
 import { DiscordButton } from '@/components/DiscordButton';
+
+import { WallOfLove } from '@/components/WallOfLove';
+import { useTranslation } from '@/context/TranslationContext';
 
 const Icons = {
   Github: () => (
@@ -70,16 +75,6 @@ const Icons = {
   ),
 };
 
-import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
-export default function LandingPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen overflow-x-hidden bg-transparent" />}>
-      <LandingContent />
-    </Suspense>
-  );
-}
-
 const renderTitle = (title: string) => {
   const parts = title.split(/(\{.*?\})/g);
   return parts.map((part, index) => {
@@ -88,7 +83,7 @@ const renderTitle = (title: string) => {
       return (
         <span
           key={index}
-          className="bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent"
+          className="contribution-text inline-block bg-[length:300%_300%] bg-gradient-to-r from-emerald-400 via-cyan-500 to-purple-500 bg-clip-text text-transparent drop-shadow-sm"
         >
           {word}
         </span>
@@ -98,8 +93,19 @@ const renderTitle = (title: string) => {
   });
 };
 
-function LandingContent() {
+export default function LandingPage() {
   const { t } = useTranslation();
+  const [username, setUsername] = useState('');
+  const [copied, setCopied] = useState(false);
+  // Track which username's badge result we have. Derived booleans auto-reset
+  // when debouncedUsername changes — no useEffect needed.
+  const [badgeResult, setBadgeResult] = useState<{
+    username: string;
+    status: 'loaded' | 'error';
+  } | null>(null);
+  const guideRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const { searches, addSearch, clearSearches, removeSearch } = useRecentSearches();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -107,52 +113,45 @@ function LandingContent() {
     setMounted(true);
   }, []);
 
-  const [username, setUsername] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [svgContent, setSvgContent] = useState<string | null>(null);
-  const [svgState, setSvgState] = useState<'idle' | 'loading' | 'loaded'>('idle');
-  const guideRef = useRef<HTMLDivElement>(null);
-  const searchParams = useSearchParams();
-  const theme = searchParams?.get('theme') || 'neon';
-  const { searches, addSearch, clearSearches } = useRecentSearches();
-  const trimmedUsername = username.trim();
-  const hasUsername = trimmedUsername.length > 0;
+  useGSAP(
+    () => {
+      if (!heroRef.current) return;
 
-  const badgeUrl = `/api/streak?user=${trimmedUsername}&theme=${theme}`;
-  const markdown = `![CommitPulse](https://commitpulse.vercel.app/api/streak?user=${trimmedUsername}&theme=${theme})`;
-
-  const [prevUsername, setPrevUsername] = useState('');
-  if (trimmedUsername !== prevUsername) {
-    setPrevUsername(trimmedUsername);
-    setSvgContent(null);
-    setSvgState(trimmedUsername ? 'loading' : 'idle');
-  }
-
-  // Fetch SVG content whenever username changes.
-  // We fetch as text and render inline to avoid the browser CSP restriction
-  // that blocks <img> from loading SVGs whose response has a restrictive
-  // Content-Security-Policy header (default-src 'none').
-  useEffect(() => {
-    if (!hasUsername) return;
-
-    const controller = new AbortController();
-
-    fetch(badgeUrl, { signal: controller.signal })
-      .then((res) => res.text())
-      .then((text) => {
-        setSvgContent(text);
-        setSvgState('loaded');
-      })
-      .catch((err) => {
-        if (err.name === 'AbortError') return;
-        setSvgState('loaded'); // show nothing rather than hang on loading
+      // Text fly-up animation
+      gsap.to('.hero-text', {
+        y: 0,
+        opacity: 1,
+        duration: 1.2,
+        ease: 'expo.out',
+        delay: 0.15,
       });
 
-    return () => controller.abort();
-  }, [badgeUrl, hasUsername]);
+      // Animate the background gradient of the word "Contribution" infinitely
+      gsap.to('.contribution-text', {
+        backgroundPosition: '300% 50%',
+        duration: 8,
+        ease: 'none',
+        repeat: -1,
+      });
+    },
+    { scope: heroRef }
+  );
+
+  const trimmedUsername = username.trim();
+  const debouncedUsername = useDebounce(trimmedUsername, 500);
+  const hasUsername = debouncedUsername.length > 0;
+
+  const badgeUrl = `/api/streak?user=${debouncedUsername}`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://commitpulse.vercel.app';
+  const markdown = `![CommitPulse](${siteUrl}/api/streak?user=${trimmedUsername})`;
+
+  // Derived — automatically false when debouncedUsername changes
+  const badgeLoaded =
+    badgeResult?.username === debouncedUsername && badgeResult?.status === 'loaded';
+  const badgeError = badgeResult?.username === debouncedUsername && badgeResult?.status === 'error';
 
   const copyToClipboard = async () => {
-    if (!hasUsername) return;
+    if (trimmedUsername.length === 0) return;
 
     try {
       await navigator.clipboard.writeText(markdown);
@@ -171,44 +170,40 @@ function LandingContent() {
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-transparent font-sans text-black dark:text-white selection:bg-black/10 dark:selection:bg-white/20">
+    <div className="min-h-screen overflow-x-hidden bg-transparent font-sans text-black dark:text-white selection:bg-black/20 dark:selection:bg-white/20">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -left-[10%] -top-[10%] h-[40%] w-[40%] rounded-full bg-black/5 dark:bg-white/3 blur-[120px]" />
-        <div className="absolute -right-[10%] top-[20%] h-[30%] w-[30%] rounded-full bg-black/5 dark:bg-white/2 blur-[120px]" />
+        <div className="absolute -left-[10%] -top-[10%] h-[40%] w-[40%] rounded-full bg-emerald-500/5 blur-[120px]" />
+        <div className="absolute -right-[10%] top-[20%] h-[30%] w-[30%] rounded-full bg-cyan-500/5 blur-[120px]" />
       </div>
 
-      <main className="relative z-10 mx-auto max-w-6xl px-6 mt-32 pb-32">
+      <main className="relative z-10 mx-auto max-w-6xl px-6 mt-32">
         <div className="mb-16 text-center">
           <DiscordButton />
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.15 }}
-          >
-            <h1 className="mb-8 bg-gradient-to-br from-gray-900 via-black to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-500 bg-clip-text text-transparent text-5xl font-extrabold tracking-tight md:text-8xl pb-2 whitespace-pre-line leading-none">
+          <div ref={heroRef}>
+            <h1 className="hero-text opacity-0 translate-y-10 mb-8 bg-gradient-to-br from-gray-900 via-black to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-500 bg-clip-text text-transparent text-5xl font-black tracking-tighter md:text-8xl pb-2 whitespace-pre-line">
               {renderTitle(t('landing.title'))}
             </h1>
-          </motion.div>
+          </div>
 
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="mx-auto max-w-2xl text-sm sm:text-lg leading-relaxed text-gray-600 dark:text-gray-400 md:text-xl"
+            className="mx-auto max-w-2xl text-sm sm:text-lg leading-relaxed text-gray-600 dark:text-white/65 md:text-xl "
           >
             {t('landing.subtitle')}
           </motion.p>
         </div>
 
-        <section className="mx-auto mb-32 max-w-4xl">
-          <div className="rounded-2xl border border-black/10 dark:border-[rgba(255,255,255,0.08)] bg-white dark:bg-[#0a0a0a] p-4 md:p-8">
+        <section className="mx-auto mb-32 max-w-4xl relative z-20">
+          <div className="rounded-3xl border border-black/5 bg-white/60 p-4 shadow-xl shadow-black/5 backdrop-blur-xl dark:border-white/10 dark:bg-[#0a0a0a]/80 dark:shadow-2xl dark:shadow-black/50 md:p-8">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 copyToClipboard();
               }}
-              className="mb-8 flex flex-col gap-4 md:flex-row"
+              className="flex flex-col sm:flex-row gap-4 w-full"
             >
               <div className="relative flex-1 flex items-center flex-col">
                 <div className="relative flex-1 flex items-center w-full">
@@ -243,15 +238,15 @@ function LandingContent() {
                   </p>
                 )}
               </div>
-
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
                   type="submit"
-                  disabled={!hasUsername}
-                  className={`relative flex min-w-[160px] items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98] ${
-                    hasUsername
-                      ? 'bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100'
-                      : 'bg-black/10 text-black/40 dark:bg-white/10 dark:text-white/35'
+                  suppressHydrationWarning
+                  disabled={!mounted || trimmedUsername.length === 0}
+                  className={`relative flex min-w-[160px] items-center justify-center gap-2 overflow-hidden rounded-2xl px-6 py-4 text-sm font-semibold transition-all duration-300 transform cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed ${
+                    mounted && trimmedUsername.length > 0
+                      ? 'bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-gray-100 shadow-md'
+                      : 'bg-gray-100 text-gray-400 dark:bg-white/5 dark:text-white/55'
                   }`}
                 >
                   <AnimatePresence mode="wait">
@@ -277,20 +272,23 @@ function LandingContent() {
                   </AnimatePresence>
                 </button>
                 <Link
-                  href={hasUsername ? `/dashboard/${trimmedUsername}` : '/'}
-                  aria-disabled={!hasUsername}
+                  href={
+                    mounted && trimmedUsername.length > 0 ? `/dashboard/${trimmedUsername}` : '/'
+                  }
+                  suppressHydrationWarning
+                  aria-disabled={!mounted || trimmedUsername.length === 0}
                   onClick={(e) => {
-                    if (!hasUsername) {
+                    if (!mounted || trimmedUsername.length === 0) {
                       e.preventDefault();
                     } else {
                       trackUser(trimmedUsername);
                       addSearch(trimmedUsername);
                     }
                   }}
-                  className={`relative flex min-w-[160px] items-center justify-center gap-2 overflow-hidden rounded-xl border px-6 py-3.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98] ${
-                    hasUsername
-                      ? 'border-black/20 bg-transparent text-black hover:bg-black/5 dark:border-[rgba(255,255,255,0.15)] dark:text-white dark:hover:bg-white/5'
-                      : 'border-black/10 bg-black/[0.02] text-black/40 dark:border-[rgba(255,255,255,0.08)] dark:bg-white/[0.02] dark:text-white/35'
+                  className={`relative flex min-w-[160px] items-center justify-center gap-2 overflow-hidden rounded-2xl border px-6 py-4 text-sm font-semibold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                    mounted && trimmedUsername.length > 0
+                      ? 'border-black/10 bg-white text-black hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 shadow-sm'
+                      : 'border-black/5 bg-gray-50 text-gray-400 dark:border-white/5 dark:bg-transparent dark:text-white/55'
                   }`}
                 >
                   {t('landing.watch_dashboard')}
@@ -301,52 +299,83 @@ function LandingContent() {
 
           {searches.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 mb-6 mt-3">
-              <span className="text-xs text-gray-500 dark:text-[#A1A1AA]">
-                {t('landing.recent')}
-              </span>
+              <span className="text-xs text-[#A1A1AA]">{t('landing.recent')}</span>
               {searches.map((s) => (
-                <button
+                <span
                   key={s}
-                  onClick={() => setUsername(s)}
-                  className="rounded-full border border-black/10 dark:border-[rgba(255,255,255,0.08)] bg-gray-50 dark:bg-[#111] px-3 py-1 text-xs text-black/70 dark:text-white/70 transition-all hover:border-black/20 dark:hover:border-[rgba(255,255,255,0.2)] hover:text-black dark:hover:text-white"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,255,255,0.08)] bg-[#111] pl-3 pr-2 py-1 text-xs text-white/70 transition-all hover:border-[rgba(255,255,255,0.2)] hover:text-white group/pill"
                 >
-                  {s}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setUsername(s)}
+                    className="transition-colors hover:text-white"
+                  >
+                    {s}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeSearch(s)}
+                    className="rounded-full p-0.5 text-white/40 hover:bg-white/10 hover:text-white transition-all flex items-center justify-center"
+                    aria-label={`Remove ${s} from recent searches`}
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
               ))}
               <button
                 onClick={clearSearches}
-                className="text-xs text-gray-500 dark:text-[#A1A1AA] underline hover:text-black dark:hover:text-white transition-colors"
+                className="text-xs text-[#A1A1AA] underline hover:text-white transition-colors"
               >
                 {t('landing.clear')}
               </button>
             </div>
           )}
 
-          <div className="group relative">
-            <div className="absolute -inset-1 rounded-[2rem] bg-black/5 dark:bg-white/5 opacity-50 blur-xl transition duration-1000 group-hover:opacity-100" />
-            <div className="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-xl border border-black/10 dark:border-[rgba(255,255,255,0.06)] bg-gray-50 dark:bg-black p-6">
+          <div className="group relative mt-10">
+            <div className="absolute -inset-1 rounded-[2.5rem] bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 opacity-50 blur-2xl transition duration-1000 group-hover:opacity-100" />
+            <div className="relative flex min-h-[480px] md:min-h-[520px] items-center justify-center overflow-hidden rounded-3xl border border-black/5 bg-white/50 p-8 backdrop-blur-xl shadow-2xl dark:border-white/10 dark:bg-[#0a0a0a]/80">
               {hasUsername ? (
-                <div className="w-full flex items-center justify-center">
-                  {svgState === 'loading' && (
-                    <div className="h-[200px] w-full max-w-[600px] rounded-xl bg-white/5 animate-pulse" />
+                <div className="w-full flex flex-col items-center justify-center gap-4">
+                  {!badgeLoaded && !badgeError && (
+                    <div className="h-[240px] w-full max-w-[700px] rounded-2xl bg-black/5 dark:bg-white/5 animate-pulse" />
                   )}
-                  {svgState === 'loaded' && svgContent && (
-                    <div
-                      className="w-full max-w-[600px] drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] [&>svg]:w-full [&>svg]:h-auto"
-                      // Safe: SVG is generated server-side by our own trusted generator
-                      dangerouslySetInnerHTML={{ __html: svgContent }}
-                    />
+                  {badgeError && (
+                    <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-red-500/20 bg-red-500/10 shadow-inner">
+                        <X size={32} className="text-red-500" />
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">
+                          {t('landing.user_not_found')}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-white/65 mt-1">
+                          {t('landing.user_not_found_desc')}
+                        </p>
+                      </div>
+                    </div>
                   )}
+                  <motion.img
+                    key={badgeUrl}
+                    data-testid="badge-img"
+                    src={badgeUrl}
+                    alt={`CommitPulse badge for ${debouncedUsername}`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: badgeLoaded ? 1 : 0, scale: badgeLoaded ? 1 : 0.95 }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                    className="w-full max-w-[700px] h-auto drop-shadow-[0_30px_60px_rgba(0,0,0,0.15)] dark:drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
+                    onLoad={() => setBadgeResult({ username: debouncedUsername, status: 'loaded' })}
+                    onError={() => setBadgeResult({ username: debouncedUsername, status: 'error' })}
+                  />
                 </div>
               ) : (
-                <div className="flex w-full max-w-2xl flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.02] px-6 py-12 text-center">
-                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/[0.04] text-black/60 dark:text-white/60">
+                <div className="flex w-full max-w-2xl flex-col items-center justify-center rounded-3xl border border-dashed border-black/10 bg-black/[0.02] px-6 py-16 text-center dark:border-white/10 dark:bg-white/[0.02]">
+                  <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-3xl border border-black/10 bg-white text-gray-600 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white/80">
                     <Icons.Github />
                   </div>
-                  <p className="md:text-lg text-md font-semibold tracking-tight text-black dark:text-white">
+                  <p className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
                     {t('landing.preview_placeholder_title')}
                   </p>
-                  <p className="mt-2 max-w-md text-xs xs:text-sm leading-relaxed text-[#A1A1AA]">
+                  <p className="mt-3 max-w-md text-sm leading-relaxed text-gray-500 dark:text-white/65">
                     {t('landing.preview_placeholder_desc')}
                   </p>
                 </div>
@@ -372,7 +401,7 @@ function LandingContent() {
         <FeatureCardsSection>
           <FeatureCard
             icon={<Icons.Zap />}
-            accent="text-black dark:text-white"
+            accent="text-white"
             accentColor="#10b981"
             index={0}
             title={t('landing.features.sync_title')}
@@ -380,7 +409,7 @@ function LandingContent() {
           />
           <FeatureCard
             icon={<Icons.Copy />}
-            accent="text-black dark:text-white"
+            accent="text-white"
             accentColor="#8b5cf6"
             index={1}
             title={t('landing.features.theme_title')}
@@ -388,7 +417,7 @@ function LandingContent() {
           />
           <FeatureCard
             icon={<Icons.Box />}
-            accent="text-black dark:text-white"
+            accent="text-white"
             accentColor="#06b6d4"
             index={2}
             title={t('landing.features.isometric_title')}
@@ -451,7 +480,7 @@ function SuccessGuide({
 
         <div className="flex items-start justify-between border-b border-black/10 px-8 pb-6 pt-8 dark:border-white/5">
           <div className="flex items-center gap-4">
-            <span className="relative flex h-2 w-2 mt-1">
+            <span className="relative mt-1 flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-black/40 opacity-40 dark:bg-white/70" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-black dark:bg-white shadow-[0_0_10px_rgba(255,255,255,0.9)]" />
             </span>

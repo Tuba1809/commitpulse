@@ -148,7 +148,7 @@ export function ControlsPanel({
             value={username}
             onChange={(e) => onUsernameChange(e.target.value)}
             placeholder={t('customize.controls.username_placeholder')}
-            className="w-full bg-white dark:bg-black border border-black/10 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono text-emerald-600 dark:text-emerald-300 placeholder:text-black/30 dark:placeholder:text-white/20 outline-none focus:border-emerald-500/50 transition-colors"
+            className="w-full bg-white/60 backdrop-blur-md border border-black/10 dark:bg-black/40 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono text-black dark:text-emerald-300 placeholder:text-gray-400 dark:placeholder:text-white/60 outline-none focus:border-emerald-500/50 transition-all duration-300"
           />
         </ControlRow>
 
