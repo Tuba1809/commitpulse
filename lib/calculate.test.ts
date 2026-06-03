@@ -1375,8 +1375,10 @@ describe('calculateMonthlyStats', () => {
       weeks: [
         {
           contributionDays: [
+            { contributionCount: 0, date: '2024-05-01' },
             { contributionCount: 5, date: '2024-05-15' },
             { contributionCount: 10, date: '2024-06-10' },
+            { contributionCount: 0, date: '2024-06-15' },
           ],
         },
       ],
@@ -1396,7 +1398,11 @@ describe('calculateMonthlyStats', () => {
       totalContributions: 10,
       weeks: [
         {
-          contributionDays: [{ contributionCount: 10, date: '2024-06-10' }],
+          contributionDays: [
+            { contributionCount: 0, date: '2024-05-01' },
+            { contributionCount: 10, date: '2024-06-10' },
+            { contributionCount: 0, date: '2024-06-15' },
+          ],
         },
       ],
     };
@@ -1413,7 +1419,11 @@ describe('calculateMonthlyStats', () => {
       totalContributions: 5,
       weeks: [
         {
-          contributionDays: [{ contributionCount: 5, date: '2024-05-10' }],
+          contributionDays: [
+            { contributionCount: 0, date: '2024-05-01' },
+            { contributionCount: 5, date: '2024-05-10' },
+            { contributionCount: 0, date: '2024-06-15' },
+          ],
         },
       ],
     };
@@ -1431,8 +1441,10 @@ describe('calculateMonthlyStats', () => {
       weeks: [
         {
           contributionDays: [
+            { contributionCount: 0, date: '2024-05-01' },
             { contributionCount: 10, date: '2024-05-10' },
             { contributionCount: 5, date: '2024-06-10' },
+            { contributionCount: 0, date: '2024-06-15' },
           ],
         },
       ],
@@ -1452,6 +1464,7 @@ describe('calculateMonthlyStats', () => {
       weeks: [
         {
           contributionDays: [
+            { contributionCount: 0, date: '2023-12-01' },
             { contributionCount: 10, date: '2023-12-15' },
             { contributionCount: 5, date: '2024-01-15' },
           ],
@@ -1472,8 +1485,10 @@ describe('calculateMonthlyStats', () => {
       weeks: [
         {
           contributionDays: [
+            { contributionCount: 0, date: '2023-12-01' },
             { contributionCount: 10, date: '2023-12-15' },
             { contributionCount: 5, date: '2024-01-15' },
+            { contributionCount: 0, date: '2024-01-20' },
           ],
         },
       ],
@@ -1486,9 +1501,7 @@ describe('calculateMonthlyStats', () => {
     expect(result.previousMonthTotal).toBe(10);
     expect(result.currentMonthName).toBe('January');
   });
-  // ==================================================================
-  // ISSUE OBJECTIVE: Empty calendar passed to calculateMonthlyStats
-  // ==================================================================
+
   it('returns zeros and does not crash when given an empty calendar', () => {
     const emptyCalendar = {
       totalContributions: 0,
@@ -1508,6 +1521,48 @@ describe('calculateMonthlyStats', () => {
 
     // 3. Assert previousMonthTotal === 0
     expect(result!.previousMonthTotal).toBe(0);
+  });
+
+  it('returns null for deltaPercentage if the previous month data is incomplete', () => {
+    const calendar = {
+      totalContributions: 15,
+      weeks: [
+        {
+          contributionDays: [
+            { contributionCount: 5, date: '2024-05-15' }, // starts after 2024-05-01
+            { contributionCount: 10, date: '2024-06-10' },
+            { contributionCount: 0, date: '2024-06-15' },
+          ],
+        },
+      ],
+    };
+    const now = new Date('2024-06-15T12:00:00Z');
+    const result = calculateMonthlyStats(calendar, 'UTC', now);
+
+    expect(result.previousMonthTotal).toBe(5);
+    expect(result.currentMonthTotal).toBe(10);
+    expect(result.deltaPercentage).toBeNull();
+  });
+
+  it('returns null for deltaPercentage if the current month data is incomplete', () => {
+    const calendar = {
+      totalContributions: 15,
+      weeks: [
+        {
+          contributionDays: [
+            { contributionCount: 0, date: '2024-05-01' },
+            { contributionCount: 5, date: '2024-05-15' },
+            { contributionCount: 10, date: '2024-06-10' }, // ends before 2024-06-15
+          ],
+        },
+      ],
+    };
+    const now = new Date('2024-06-15T12:00:00Z');
+    const result = calculateMonthlyStats(calendar, 'UTC', now);
+
+    expect(result.previousMonthTotal).toBe(5);
+    expect(result.currentMonthTotal).toBe(10);
+    expect(result.deltaPercentage).toBeNull();
   });
 });
 
