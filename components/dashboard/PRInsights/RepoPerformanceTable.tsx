@@ -32,15 +32,23 @@ export default function RepoPerformanceTable({ data }: { data: PRInsightData }) 
             <tr className="border-b border-gray-200 dark:border-zinc-800 text-sm font-semibold text-gray-500">
               <th className="pb-3 pr-4 font-medium uppercase tracking-wider">Repository</th>
               <th className="pb-3 px-4 font-medium uppercase tracking-wider text-right">PRs</th>
-              <th className="pb-3 px-4 font-medium uppercase tracking-wider text-right">Merge Rate</th>
+              <th className="pb-3 px-4 font-medium uppercase tracking-wider text-right">
+                Merge Rate
+              </th>
               <th className="pb-3 pl-4 font-medium uppercase tracking-wider text-right">Reviews</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800/50">
             {repoPerformance.map((repo, idx) => (
-              <tr key={repo.name} className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+              <tr
+                key={repo.name}
+                className="group hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors"
+              >
                 <td className="py-3 pr-4">
-                  <div className="font-medium text-gray-900 dark:text-white truncate max-w-[150px] sm:max-w-[200px]" title={repo.name}>
+                  <div
+                    className="font-medium text-gray-900 dark:text-white truncate max-w-[150px] sm:max-w-[200px]"
+                    title={repo.name}
+                  >
                     {repo.name.split('/')[1] || repo.name}
                   </div>
                   <div className="text-xs text-gray-500 truncate max-w-[150px] sm:max-w-[200px]">
@@ -52,10 +60,12 @@ export default function RepoPerformanceTable({ data }: { data: PRInsightData }) 
                 </td>
                 <td className="py-3 px-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">{repo.mergeRate.toFixed(0)}%</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      {repo.mergeRate.toFixed(0)}%
+                    </span>
                     <div className="w-12 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-cyan-500 rounded-full" 
+                      <div
+                        className="h-full bg-cyan-500 rounded-full"
                         style={{ width: `${repo.mergeRate}%` }}
                       />
                     </div>

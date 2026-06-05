@@ -7,8 +7,8 @@ export default function PRStatusDistribution({ data }: { data: PRInsightData }) 
   const chartData = [
     { name: 'Merged', value: data.mergedPRs, color: '#10b981' }, // Emerald
     { name: 'Open', value: data.openPRs, color: '#3b82f6' }, // Blue
-    { name: 'Closed', value: data.closedPRs, color: '#ef4444' } // Red
-  ].filter(item => item.value > 0);
+    { name: 'Closed', value: data.closedPRs, color: '#ef4444' }, // Red
+  ].filter((item) => item.value > 0);
 
   return (
     <motion.div
@@ -41,13 +41,18 @@ export default function PRStatusDistribution({ data }: { data: PRInsightData }) 
                 <Cell key={`cell-${index}`} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip 
-              contentStyle={{ backgroundColor: 'rgba(24, 24, 27, 0.9)', border: 'none', borderRadius: '12px', color: '#fff' }}
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'rgba(24, 24, 27, 0.9)',
+                border: 'none',
+                borderRadius: '12px',
+                color: '#fff',
+              }}
               itemStyle={{ color: '#fff' }}
             />
           </PieChart>
         </ResponsiveContainer>
-        
+
         {/* Center Text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span className="text-3xl font-bold text-gray-900 dark:text-white">{data.totalPRs}</span>
@@ -56,7 +61,7 @@ export default function PRStatusDistribution({ data }: { data: PRInsightData }) 
       </div>
 
       <div className="flex justify-center gap-4 mt-2">
-        {chartData.map(item => (
+        {chartData.map((item) => (
           <div key={item.name} className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">

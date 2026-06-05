@@ -27,7 +27,6 @@ import ProfileOptimizerModal from './ProfileOptimizerModal';
 import ResumeProfileSection from './ResumeProfileSection';
 import type { DashboardPeriod } from '@/utils/dashboardPeriod';
 import { PopularRepos } from './PopularPinnnedRepos';
-import MergedPRTimeline from './MergedPRTimeline';
 import PRInsightsClient from './PRInsights/PRInsightsClient';
 
 // Define the dashboard data structure

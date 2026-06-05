@@ -1,6 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { GitPullRequest, GitMerge, Clock, Activity, CheckCircle2, GitPullRequestDraft } from 'lucide-react';
+import {
+  GitPullRequest,
+  GitMerge,
+  Clock,
+  Activity,
+  CheckCircle2,
+  GitPullRequestDraft,
+} from 'lucide-react';
 import type { PRInsightData } from '@/services/github/pr-insights';
 
 interface MetricCardProps {
@@ -12,7 +19,14 @@ interface MetricCardProps {
   suffix?: string;
 }
 
-const MetricCard = ({ title, value, icon: Icon, trend, delay = 0, suffix = '' }: MetricCardProps) => (
+const MetricCard = ({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  delay = 0,
+  suffix = '',
+}: MetricCardProps) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -51,7 +65,11 @@ export default function TopMetricsRow({ data }: { data: PRInsightData }) {
         title="Total PRs"
         value={data.totalPRs}
         icon={GitPullRequest}
-        trend={data.weeklyActivity?.length > 0 ? `+${data.weeklyActivity[data.weeklyActivity.length - 1].prs} this week` : undefined}
+        trend={
+          data.weeklyActivity?.length > 0
+            ? `+${data.weeklyActivity[data.weeklyActivity.length - 1].prs} this week`
+            : undefined
+        }
         delay={0.1}
       />
       <MetricCard

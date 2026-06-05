@@ -12,10 +12,10 @@ export async function GET(request: Request) {
   try {
     const data = await fetchPRInsights(username);
     return NextResponse.json(data);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching PR insights:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch PR insights' },
+      { error: error instanceof Error ? error.message : 'Failed to fetch PR insights' },
       { status: 500 }
     );
   }

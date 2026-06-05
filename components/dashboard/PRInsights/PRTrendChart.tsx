@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import type { PRInsightData } from '@/services/github/pr-insights';
 
 export default function PRTrendChart({ data }: { data: PRInsightData }) {
@@ -41,18 +49,40 @@ export default function PRTrendChart({ data }: { data: PRInsightData }) {
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorPrs" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(156, 163, 175, 0.2)" />
-            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} dy={10} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="rgba(156, 163, 175, 0.2)"
+            />
+            <XAxis
+              dataKey="name"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#9ca3af', fontSize: 12 }}
+              dy={10}
+            />
             <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
-            <Tooltip 
-              contentStyle={{ backgroundColor: 'rgba(24, 24, 27, 0.9)', border: 'none', borderRadius: '12px', color: '#fff' }}
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'rgba(24, 24, 27, 0.9)',
+                border: 'none',
+                borderRadius: '12px',
+                color: '#fff',
+              }}
               itemStyle={{ color: '#06b6d4' }}
             />
-            <Area type="monotone" dataKey="prs" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorPrs)" />
+            <Area
+              type="monotone"
+              dataKey="prs"
+              stroke="#06b6d4"
+              strokeWidth={3}
+              fillOpacity={1}
+              fill="url(#colorPrs)"
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>

@@ -22,7 +22,9 @@ export default function ReviewAnalytics({ data }: { data: PRInsightData }) {
             <Eye size={18} />
             <span className="text-sm font-semibold uppercase tracking-wider">Reviews Given</span>
           </div>
-          <div className="text-3xl font-bold text-gray-900 dark:text-white">{data.reviewsGiven}</div>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white">
+            {data.reviewsGiven}
+          </div>
         </div>
 
         <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-2xl p-5 border border-black/5 dark:border-white/5">
@@ -30,7 +32,9 @@ export default function ReviewAnalytics({ data }: { data: PRInsightData }) {
             <MessageCircle size={18} />
             <span className="text-sm font-semibold uppercase tracking-wider">Reviews Received</span>
           </div>
-          <div className="text-3xl font-bold text-gray-900 dark:text-white">{data.reviewsReceived}</div>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white">
+            {data.reviewsReceived}
+          </div>
         </div>
 
         <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-2xl p-5 border border-black/5 dark:border-white/5">
@@ -39,7 +43,8 @@ export default function ReviewAnalytics({ data }: { data: PRInsightData }) {
             <span className="text-sm font-semibold uppercase tracking-wider">Fastest Review</span>
           </div>
           <div className="text-3xl font-bold text-gray-900 dark:text-white">
-            {data.fastestReview.toFixed(1)} <span className="text-base text-gray-500 font-medium">hrs</span>
+            {data.fastestReview.toFixed(1)}{' '}
+            <span className="text-base text-gray-500 font-medium">hrs</span>
           </div>
         </div>
 
@@ -49,7 +54,8 @@ export default function ReviewAnalytics({ data }: { data: PRInsightData }) {
             <span className="text-sm font-semibold uppercase tracking-wider">Slowest Review</span>
           </div>
           <div className="text-3xl font-bold text-gray-900 dark:text-white">
-            {data.slowestReview.toFixed(1)} <span className="text-base text-gray-500 font-medium">hrs</span>
+            {data.slowestReview.toFixed(1)}{' '}
+            <span className="text-base text-gray-500 font-medium">hrs</span>
           </div>
         </div>
       </div>
