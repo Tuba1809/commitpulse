@@ -200,7 +200,6 @@ export default function Heatmap({
           </VisualizationTooltip>
         )}
       </AnimatePresence>
-      .
     </>
   );
 }
