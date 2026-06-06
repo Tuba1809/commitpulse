@@ -280,14 +280,14 @@ const baseStreakParamsSchema = z.object({
     .optional()
     .refine(
       (val) => {
-        if (!val) return true;
-        const parsed = Number(val);
-        return !isNaN(parsed) && Number.isInteger(parsed) && parsed >= 0 && parsed <= 7;
+        if (val === undefined || val === '') return true;
+        return /^\d+$/.test(val) && Number(val) >= 0 && Number(val) <= 7;
       },
       { message: 'grace must be an integer between 0 and 7' }
     )
-    .transform(toGraceValue)
+    .transform((val) => (val === undefined || val === '' ? 1 : Number(val)))
     .default(1),
+
   mode: z.enum(['commits', 'loc']).catch('commits').default('commits'),
   repo: z.string().optional(),
   org: z
@@ -304,6 +304,7 @@ const baseStreakParamsSchema = z.object({
     .transform((val) => (val ? sanitizeHexColor(val, '7f8c8d') : undefined)),
   versus: z
     .string()
+    .max(39, { message: 'Versus username cannot exceed 39 characters' })
     .optional()
     .refine(
       (val) => {
@@ -328,12 +329,18 @@ const baseStreakParamsSchema = z.object({
       return val === 'true';
     })
     .default(false),
-  gradient_stops: z.string().optional(),
+  gradient_stops: z
+    .string()
+    .max(200, {
+      message: 'gradient_stops cannot exceed 200 characters',
+    })
+    .optional(),
   gradient_dir: z.enum(['vertical', 'horizontal', 'diagonal']).catch('vertical').optional(),
   disable_particles: z
     .string()
     .optional()
     .transform((val) => val === 'true' || val === '1'),
+
   // Glow effect — on by default. Accepts 'true'/'1' (true) or 'false' (false).
   glow: z.string().optional().transform(toBooleanFlag).default(true),
   opacity: z.string().optional().transform(toOpacityValue),
@@ -430,6 +437,7 @@ export const ogParamsSchema = z
       .optional()
       .transform(toEmptyStringAsUndefined)
       .transform(toValidHexColor('000000')),
+    refresh: z.string().optional().transform(toRefreshFlag),
   })
   .transform((data) => ({
     ...data,
@@ -575,6 +583,58 @@ export const notifyGetSchema = z.object({
     }),
 });
 
+const resumeTextField = (max: number) => z.string().trim().max(max).default('');
+
+export const resumeConfirmDataSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, { message: 'Name and email are required' })
+    .max(100, { message: 'Name must be at most 100 characters' }),
+  email: z
+    .string()
+    .trim()
+    .min(1, { message: 'Name and email are required' })
+    .max(254, { message: 'Email must be at most 254 characters' })
+    .email({ message: 'Invalid email address' }),
+  phone: z.string().trim().max(40, { message: 'Phone must be at most 40 characters' }).default(''),
+  skills: z
+    .array(z.string().trim().max(80, { message: 'Each skill must be at most 80 characters' }))
+    .max(100, { message: 'Too many skills (max 100)' })
+    .default([])
+    .transform((items) => items.filter((s) => s.length > 0)),
+  education: z
+    .array(
+      z.object({
+        institution: resumeTextField(200),
+        degree: resumeTextField(200),
+        field: resumeTextField(200),
+        startDate: resumeTextField(50),
+        endDate: resumeTextField(50),
+      })
+    )
+    .max(50, { message: 'Too many education entries (max 50)' })
+    .default([])
+    .transform((items) =>
+      items.filter((e) => e.institution || e.degree || e.field || e.startDate || e.endDate)
+    ),
+  experience: z
+    .array(
+      z.object({
+        company: resumeTextField(200),
+        role: resumeTextField(200),
+        startDate: resumeTextField(50),
+        endDate: resumeTextField(50),
+        description: resumeTextField(2000),
+      })
+    )
+    .max(50, { message: 'Too many experience entries (max 50)' })
+    .default([])
+    .transform((items) =>
+      items.filter((x) => x.company || x.role || x.startDate || x.endDate || x.description)
+    ),
+});
+
 export type StreakParams = z.infer<typeof streakParamsSchema>;
 export type GithubParams = z.infer<typeof githubParamsSchema>;
 export type CompareParams = z.infer<typeof compareParamsSchema>;
@@ -583,3 +643,4 @@ export type StatsParams = z.infer<typeof statsParamsSchema>;
 export type WrappedParams = z.infer<typeof wrappedParamsSchema>;
 export type NotifyPostParams = z.infer<typeof notifyPostSchema>;
 export type NotifyGetParams = z.infer<typeof notifyGetSchema>;
+export type ResumeConfirmData = z.infer<typeof resumeConfirmDataSchema>;
