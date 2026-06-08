@@ -59,10 +59,6 @@ export function TechnologiesSection({ selected, onChange }: TechnologiesSectionP
 
   const recommendations = useMemo(() => getRecommendations(safeSelected), [safeSelected]);
 
-  // Debug logging
-  console.log('Selected Technologies:', safeSelected);
-  console.log('Recommendations:', recommendations);
-
   const filteredRecommendations = useMemo(() => {
     if (recCategory === 'All') return recommendations;
     return recommendations.filter((r) => r.category === recCategory);
