@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AUTO_THEME_DARK, AUTO_THEME_LIGHT, themes } from './themes';
+import { AUTO_THEME_DARK, AUTO_THEME_LIGHT } from './themes';
 import { contrastRatio, relativeLuminance } from './themes/test-utils';
 
 describe('Dark and Light prefers-color-scheme visual cohesion', () => {
