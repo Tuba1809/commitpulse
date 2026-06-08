@@ -110,11 +110,11 @@ export function TranslationProvider({ children }: { children: ReactNode }) {
     const translationSet = translations[currentLang] || translations.en;
     let value = getNestedValue(translationSet as Record<string, unknown>, path);
 
-    if (typeof value !== 'string') {
+    if (value === undefined) {
       value = getNestedValue(translations.en as Record<string, unknown>, path);
     }
 
-    if (typeof value !== 'string') {
+    if (value === undefined) {
       if (params && 'defaultValue' in params) {
         return params.defaultValue;
       }
@@ -147,7 +147,7 @@ export function useTranslation() {
       changeLanguage: () => {},
       t: (path: string, params?: Record<string, string>): string => {
         const value = getNestedValue(en, path);
-        if (typeof value !== 'string') {
+        if (value === undefined) {
           if (params && 'defaultValue' in params) {
             return params.defaultValue;
           }
