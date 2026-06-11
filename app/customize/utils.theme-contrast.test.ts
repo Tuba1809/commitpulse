@@ -1,57 +1,54 @@
 import { describe, expect, it } from 'vitest';
-import { buildQueryParams, getExportSnippet } from './utils';
 import type { CustomizeOptions } from './types';
+import { buildQueryParams, getExportSnippet } from './utils';
 
-const baseOptions: CustomizeOptions = {
-  username: 'vishva',
-  theme: 'dark',
-  bgHex: '',
-  accentHex: '',
-  textHex: '',
-  scale: 'linear',
-  speed: '8s',
-  font: '',
-  year: '',
-  radius: 8,
-  size: 'medium',
-  hideTitle: false,
-  hideBackground: false,
-  hideStats: false,
-  viewMode: 'default',
-  deltaFormat: 'percent',
-  badgeWidth: '',
-  badgeHeight: '',
-  grace: 1,
-  language: 'en',
-  timezone: 'UTC',
-};
+const createOptions = (overrides: Partial<CustomizeOptions> = {}): CustomizeOptions =>
+  ({
+    username: 'vishva',
+    theme: 'dark',
+    bgHex: '',
+    accentHex: '',
+    textHex: '',
+    scale: 'linear',
+    speed: '8s',
+    font: '',
+    year: '',
+    radius: 8,
+    size: 'medium',
+    hideTitle: false,
+    hideBackground: false,
+    hideStats: false,
+    viewMode: 'default',
+    deltaFormat: 'percent',
+    badgeWidth: '',
+    badgeHeight: '',
+    grace: 1,
+    language: 'en',
+    timezone: 'UTC',
+    ...overrides,
+  }) as CustomizeOptions;
 
 describe('utils theme contrast', () => {
   it('preserves dark theme query parameter', () => {
-    const query = buildQueryParams({
-      ...baseOptions,
-      theme: 'dark',
-    });
+    const query = buildQueryParams(createOptions({ theme: 'dark' }));
 
     expect(query).toContain('theme=dark');
   });
 
   it('preserves light theme query parameter', () => {
-    const query = buildQueryParams({
-      ...baseOptions,
-      theme: 'light',
-    });
+    const query = buildQueryParams(createOptions({ theme: 'light' }));
 
     expect(query).toContain('theme=light');
   });
 
   it('uses valid custom contrast colors when provided', () => {
-    const query = buildQueryParams({
-      ...baseOptions,
-      bgHex: '000000',
-      textHex: 'ffffff',
-      accentHex: '00ff00',
-    });
+    const query = buildQueryParams(
+      createOptions({
+        bgHex: '000000',
+        textHex: 'ffffff',
+        accentHex: '00ff00',
+      })
+    );
 
     expect(query).toContain('bg=000000');
     expect(query).toContain('text=ffffff');
