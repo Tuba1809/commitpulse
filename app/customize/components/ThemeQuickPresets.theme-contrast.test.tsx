@@ -56,8 +56,6 @@ describe('ThemeQuickPresets Theme Contrast', () => {
       name: /apply dark theme/i,
     });
 
-    expect(button).toHaveStyle({
-      background: expect.stringContaining('linear-gradient'),
-    });
+    expect(button).toHaveAttribute('style', expect.stringContaining('linear-gradient'));
   });
 });
