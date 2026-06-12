@@ -7,26 +7,36 @@ export default function AnimatedCursor() {
   const ringRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState(false);
 
+  const prefersReduced =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // const [mounted, setMounted] = useState(false);
   // ── Reduced motion: hide custom cursor entirely when user prefers it ──
-  const [prefersReduced, setPrefersReduced] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  });
 
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  // const [prefersReduced, setPrefersReduced] = useState(false);
 
-    const handler = (e: MediaQueryListEvent) => {
-      setPrefersReduced(e.matches);
-    };
+  //   useEffect(() => {
+  //   setMounted(true);
 
-    mq.addEventListener('change', handler);
+  //   const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-    return () => {
-      mq.removeEventListener('change', handler);
-    };
-  }, []);
+  //   const handler = (e: MediaQueryListEvent) => {
+  //     setPrefersReduced(e.matches);
+  //   };
+
+  //   mq.addEventListener('change', handler);
+
+  //   return () => {
+  //     mq.removeEventListener('change', handler);
+  //   };
+  // }, []);
   // ── End reduced motion guard ──────────────────────────────────────────
+  // useEffect(() => {
+  //   if (!mounted) return;
+
+  //   const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  //   setPrefersReduced(mq.matches);
+  // }, [mounted]);
 
   const isHoveringRef = useRef(false);
 
@@ -96,6 +106,8 @@ export default function AnimatedCursor() {
   }, []);
 
   // Render nothing when user prefers reduced motion — native cursor takes over
+  // if (!mounted) return null;
+
   if (prefersReduced) return null;
 
   return (
